@@ -1,0 +1,9 @@
+tmp/
+statistic/
+log/
+**/config/**
+nohup.out
+*__pycache__
+*.vscode
+tmp/
+*.json
