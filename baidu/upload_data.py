@@ -1,0 +1,105 @@
+from baidu.bos_client import BOSClient
+from tools.batch_gen_request import parse_args
+from utils.io import read_config
+from pathlib import Path
+import os
+import re
+import shutil
+from loguru import logger
+
+def main():
+    args = parse_args()
+    config = read_config(
+        config_path=args.config_path,
+        config=args.config_name
+    )
+    log_dir = Path(config.get("log_dir"))
+    logger.info(f"log dir {str(log_dir)}")
+    assert log_dir.exists()
+    data_dir = Path(config.get("data_dir"))
+    assert data_dir.exists()
+    log_path = log_dir / f"{data_dir.name}.log"
+    logger.add(str(log_path), rotation="10 MB", level="INFO")
+    logger.info(f"upload dir {str(data_dir)}")
+    bos_client = BOSClient(
+        config_path=args.config_path,
+        config_name=args.config_name,
+        inference_endpoint_name=""
+    )
+
+    # bos_client.upload_dir(str(data_dir))
+    max_depth = 2  # 限制最多递归2层
+    base_depth = len(str(data_dir).split(os.sep))
+
+    for root, dirs, files in os.walk(str(data_dir)):
+        # logger.info(f"root: {root}")
+        # logger.info(f"dirs: {dirs}")
+        # logger.info(f"files: {files}")
+        current_depth = len(root.split(os.sep))
+        if current_depth - base_depth >= max_depth:
+            del dirs[:]  # 清空子目录列表，停止继续递归
+        for file in files:
+            # 检查是否是 _punc_train.list 文件
+            if file.endswith('_punc_train.list'):
+                file_path = os.path.join(root, file)
+                logger.info(f"处理文件: {file_path}")
+                new_lines = []
+                valid_count = 0
+                missing_count = 0
+                # 读取文件内容
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                
+                # 处理每一行
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    # 按空格分割为两个字符串
+                    parts = line.split(' ', 1)
+                    if len(parts) < 2:
+                        logger.warning(f"行格式错误: {line}")
+                        continue
+                    
+                    old_audio_path, text = parts
+                    
+                    # 修改音频路径
+                    new_audio_path = old_audio_path.replace(
+                        '/nasStore',
+                        '/nasStore-23/000-TrainDataSets'
+                    )
+                    
+                    # 检查文件是否存在
+                    if os.path.exists(new_audio_path):
+                        # 执行上传操作（这里需要替换为你的上传逻辑）
+                        ret = bos_client.upload_file(new_audio_path, new_audio_path)
+                        if ret:
+                            valid_count += 1
+                            new_lines.append(f"{new_audio_path} {text}\n")
+                        else:
+                            missing_count += 1
+                    else:
+                        missing_count += 1
+                        logger.error(f"文件不存在: {new_audio_path}")
+
+                    # 创建并上传新的 list 文件
+                if new_lines:
+                    new_list_filename = f"new_{file}"
+                    new_list_path = os.path.join(root, new_list_filename)
+                    
+                    with open(new_list_path, 'w', encoding='utf-8') as f:
+                        f.writelines(new_lines)
+                    
+                    # 上传新的 list 文件
+                    ret = bos_client.upload_file(file_path, new_list_path)
+                    if not ret:
+                        logger.error(f"上传 list 文件失败: {new_list_path}")
+                    else:
+                        os.remove(new_list_path)
+                
+                logger.info(f"处理完成: 有效 {valid_count} 条, 缺失 {missing_count} 条")
+
+
+if __name__ == "__main__":
+    main()
