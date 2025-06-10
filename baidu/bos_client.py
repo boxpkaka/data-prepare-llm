@@ -145,16 +145,16 @@ class BOSClient():
         结构示例：main_task_name/sub_task_name/xxx/yyy
         """
         prefix = f"{main_task_name}/"
-        response = self.client.list_objects(
+        response = self.client.list_all_objects(
             bucket_name=self.bucket_name,
             prefix=prefix,
-            max_keys=9999
+            # max_keys=9999
         )
 
         sub_tasks = set()
-        for obj in response.contents:
+        for _item in response:
             # 去掉前缀后再按 / 切
-            rest = obj.key[len(prefix):]
+            rest = _item.key[len(prefix):]
             # rest 形如 "sub_task/foo/bar.txt"
             if rest:
                 sub_task_name = rest.split("/", 1)[0]

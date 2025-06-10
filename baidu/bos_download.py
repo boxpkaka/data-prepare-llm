@@ -37,16 +37,9 @@ def main():
         config_name=args.config_name,
     )
 
-    sub_dirs = [
-        data_dir / "batch_api"/ sub_dir_name 
-        for sub_dir_name in os.listdir(data_dir / "batch_api") 
-        if (data_dir / "batch_api"/ sub_dir_name).is_dir()
-        ]
-
-    if not sub_dirs:
-        remote_sub_tasks = bos_client.list_remote_sub_tasks(main_task_name)
-        # 在本地先建目录，保持与 upload 时一致
-        sub_dirs = [(data_dir / "batch_api" / name) for name in remote_sub_tasks]
+    remote_sub_tasks = bos_client.list_remote_sub_tasks(main_task_name)
+    # 在本地先建目录，保持与 upload 时一致
+    sub_dirs = [(data_dir / "batch_api" / name) for name in remote_sub_tasks]
 
     for sub_dir in sub_dirs:
         download_dir = sub_dir / "download"
@@ -56,7 +49,6 @@ def main():
             main_task_name=main_task_name,
             sub_task_name=sub_dir.name.replace("-", "_")
         )
-
 
 
 if __name__ == "__main__":
