@@ -139,6 +139,29 @@ class BOSClient():
         except BceError as e:
             logger.error(f"Error deleting file, Bucket: {self.bucket_name} Name: {target_path} Error: {e}")
 
+    def list_remote_sub_tasks(self, main_task_name: str) -> list[str]:
+        """
+        列出云端 main_task_name 下的所有二级目录（即 sub_task 名称）
+        结构示例：main_task_name/sub_task_name/xxx/yyy
+        """
+        prefix = f"{main_task_name}/"
+        response = self.client.list_objects(
+            bucket_name=self.bucket_name,
+            prefix=prefix,
+            max_keys=9999
+        )
+
+        sub_tasks = set()
+        for obj in response.contents:
+            # 去掉前缀后再按 / 切
+            rest = obj.key[len(prefix):]
+            # rest 形如 "sub_task/foo/bar.txt"
+            if rest:
+                sub_task_name = rest.split("/", 1)[0]
+                if sub_task_name and not sub_task_name.startswith("."):
+                    sub_tasks.add(sub_task_name)
+        return sorted(sub_tasks)
+
     def download_batch_job(
         self,
         local_dir: Path,

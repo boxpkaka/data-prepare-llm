@@ -43,8 +43,12 @@ def main():
         if (data_dir / "batch_api"/ sub_dir_name).is_dir()
         ]
 
+    if not sub_dirs:
+        remote_sub_tasks = bos_client.list_remote_sub_tasks(main_task_name)
+        # 在本地先建目录，保持与 upload 时一致
+        sub_dirs = [(data_dir / "batch_api" / name) for name in remote_sub_tasks]
+
     for sub_dir in sub_dirs:
-        assert sub_dir.exists()
         download_dir = sub_dir / "download"
         os.makedirs(download_dir, exist_ok=True)
         bos_client.download_batch_job(
