@@ -61,6 +61,8 @@ class BOSClient():
     def upload_file(self, target_path: str, file_path: str, overwrite: bool = False) -> bool:
         file_path = str(file_path)
         target_path = str(target_path)
+        while target_path[0] == '/':
+            target_path = target_path[1:]
         response = self.client.list_objects(
             bucket_name=self.bucket_name,
             prefix=target_path,
