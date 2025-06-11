@@ -68,6 +68,18 @@ def process_file(in_path: Path, out_path: Path, task: str) -> dict:
             elif task == "topic":
                 dump_item = {"topic": metadata}
                 dump_item["contents"] = [sentence.strip() for sentence in answer.split("\n") if sentence]
+            elif task == "norm":
+                prompt = item["messages"][1]["content"]
+                src = prompt.split("\n", 1)[-1]
+                punt = answer
+                # 根据原始文本长度动态调整阈值
+                dynamic_threshold = max(10, len(src) * 0.1)  # 取10或文本长度10%的较大值
+                if len(punt) - len(src) >= dynamic_threshold:
+                    logger.warning(f"punt error : file_name:{file_name} wav_path:{metadata} src:{src} punt:{punt}")
+                    continue
+                dump_item = {"utt": metadata}
+                dump_item["src"] = src
+                dump_item["text"] = punt
             else:
                 logger.error(f"No support task: {task}")
                 return None
@@ -95,6 +107,7 @@ def main():
 
     data_dir = Path(config.get("data_dir"))
     task = config.get("task")
+    src_lang = config.get("src_lang")
 
     log_path = f"baidu/log/{data_dir.name}.json"
 
@@ -130,7 +143,6 @@ def main():
             result = future.result()
             if result is not None:
                 all_statistic.update(result)
-
     write_json(json_path=completion_path, dump_item=all_statistic, overwrite=True)
 
 
