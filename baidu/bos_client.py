@@ -119,9 +119,9 @@ class BOSClient():
                 path = futures[future]
                 try:
                     future.result()
-                    print(f"✓ Uploaded: {path}")  # 成功日志
+                    logger.success(f"✓ Uploaded: {path}")  # 成功日志
                 except Exception as e:
-                    print(f"✗ Failed to upload {path}: {e}")
+                    logger.warning(f"✗ Failed to upload {path}: {e}")
 
     def download_file(self, bos_path: str, local_path: str) -> None:
         try:

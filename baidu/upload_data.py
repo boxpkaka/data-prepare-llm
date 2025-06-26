@@ -9,6 +9,8 @@ from itertools import islice
 from loguru import logger
 import tempfile
 
+# 这个会枚举目录（最多2层）里面的_punc_train.list后缀文件，校验里面的音频路径是否存在，将存在的音频通过多线程上传到bos
+
 class LargeFileProcessor:
     def __init__(self, bos_client, max_workers=8, batch_size=10000):
         self.bos_client = bos_client
