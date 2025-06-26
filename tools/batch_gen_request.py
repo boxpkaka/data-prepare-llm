@@ -26,12 +26,20 @@ CLIENT_TYPE = [
     "baidu"
 ]
 
-TASK = [
-    "norm",
-    "translation",
-    "sst",
-    "topic",
-]
+TASK = {
+    "norm":{
+        "id_key":"utt",
+        "content_key":"text",
+    },
+    "translation":{
+        "id_key":"utt",
+        "content_key":"text",
+    },
+    "sst":{},
+    "topic":{},
+}
+
+
 
 
 class BatchRequestGenerator:
@@ -51,6 +59,8 @@ class BatchRequestGenerator:
         self.client_type = config.get("client_type", "openai")
         self.task = config.get("task", "norm")
         self.target_num = config.get("target_num", 10)
+        self.id_key = config.get("id_key", TASK[self.task]["id_key"])
+        self.content_key = config.get("content_key", TASK[self.task]["content_key"])
 
         assert self.client_type in CLIENT_TYPE
         assert self.task in TASK
@@ -157,8 +167,8 @@ class BatchRequestGenerator:
         else:
             if file_path.suffix == ".jsonl":
                 item = ujson.loads(line)
-                custom_id = item.get("utt")
-                text = item.get("text")
+                custom_id = item.get(self.id_key)
+                text = item.get(self.content_key)
 
             if file_path.suffix == ".list":
                 try:
@@ -168,8 +178,11 @@ class BatchRequestGenerator:
                     return None, None
                 custom_id = wav_path
             
-            prompt_text = self.get_prompted_text(text)
-            request = self.get_batch_request(user_prompt=prompt_text, custom_id=custom_id)
+            if self.task == "norm":
+                request = self.get_batch_request(user_prompt=text, custom_id=custom_id, system_prompt=self.prompt)
+            else:
+                prompt_text = self.get_prompted_text(text)
+                request = self.get_batch_request(user_prompt=prompt_text, custom_id=custom_id)
 
         return request, custom_id
 
