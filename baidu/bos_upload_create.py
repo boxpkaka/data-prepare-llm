@@ -20,7 +20,7 @@ import shutil
 from loguru import logger
 
 TASK_LIMIT = 100
-FILE_LIMIT = 100
+FILE_LIMIT = 50
 
 def get_suffix_num(filename):
     # 使用正则表达式匹配下划线后面的数字直到文件扩展名前的部分

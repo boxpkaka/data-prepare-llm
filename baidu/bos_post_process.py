@@ -15,7 +15,8 @@ TASK = [
     "norm",
     "translation",
     "sst",
-    "topic"
+    "topic",
+    "extract"
 ]
 
 class NormalizeTaskChecker:
@@ -217,6 +218,30 @@ def process_file(in_path: Path, out_path: Path, task: str, src_lang: str) -> dic
                         continue
                 except ValueError as e:
                     logger.error(f"规范化失败: {e}")
+                    continue
+            elif task == "extract":
+                def parse_json_manually(raw_str):
+                    # 提取 zh-cn
+                    en_tag = '", "en": "'
+                    zh_tag = '{"zh-cn": "'
+                    en_tag_pos = raw_str.find(en_tag)
+                    zh_cn_str = raw_str[len(zh_tag):en_tag_pos]
+                    en_str = raw_str[en_tag_pos + len(en_tag):len(raw_str)-2]
+                    return {"zh-cn": zh_cn_str, "en": en_str}
+                try:
+                    prompt = item["messages"][1]["content"]
+                    prompt_lines = [line.strip() for line in prompt.splitlines() if line.strip()]
+                    last_line = prompt_lines[-1] if prompt_lines else None  # 处理全空情况
+                    if last_line:
+                        dump_item = parse_json_manually(last_line)
+                        dump_item["wav_path"] = metadata
+                        termJson = ujson.loads(answer)
+                        if isinstance(termJson, dict):
+                            dump_item["term"] = termJson["term"]
+                        else:
+                            dump_item["term"] = None
+                except Exception  as e:
+                    logger.error(f"处理失败: {e} id:{metadata} file:{file_name} prompt:{prompt} answer:{answer}")
                     continue
             else:
                 logger.error(f"No support task: {task}")

@@ -7,7 +7,7 @@ from pathlib import Path
 from multiprocessing import Pool, cpu_count
 from loguru import logger
 from utils.topic import TOPIC, TOPIC_PROMPT
-from utils.prompt import SST_PROMPT
+from utils.prompt import SST_PROMPT, TERMS_PROMPT
 from tools import ISO_MAP
 
 from utils.io import read_config
@@ -35,8 +35,18 @@ TASK = {
         "id_key":"utt",
         "content_key":"text",
     },
-    "sst":{},
-    "topic":{},
+    "sst":{
+        "id_key":"utt",
+        "content_key":"text",
+    },
+    "topic":{
+        "id_key":"utt",
+        "content_key":"text",
+    },
+    "extract":{
+        "id_key":"utt",
+        "content_key":"text",
+    },
 }
 
 
@@ -164,6 +174,14 @@ class BatchRequestGenerator:
                 custom_id=custom_id,
                 system_prompt=None
             )
+        elif self.task == "extract":
+            item = ujson.loads(line)
+            custom_id = item.get("wav_path")
+            src = item.get("zh-cn")
+            dest = item.get("en")
+            request = self.get_batch_request(user_prompt=TERMS_PROMPT["user"].replace("{transcription}", src).replace("{translation}", dest),
+                custom_id=custom_id, 
+                system_prompt=TERMS_PROMPT["system"])
         else:
             if file_path.suffix == ".jsonl":
                 item = ujson.loads(line)
