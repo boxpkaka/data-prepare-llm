@@ -2,7 +2,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 import re
-
+import sys
 import ujson
 from loguru import logger
 
@@ -10,6 +10,12 @@ from openai_azure.batch_api.convert_to_parallel import response_to_dict
 from tools.batch_gen_request import parse_args
 from utils.io import read_config, read_json, write_json
 from collections import Counter
+
+try:
+    import Levenshtein as lev
+except ImportError:
+    print("Please install python-Levenshtein: pip install python-Levenshtein", file=sys.stderr)
+    sys.exit(1)
 
 TASK = [
     "norm",
@@ -24,31 +30,44 @@ class NormalizeTaskChecker:
         self.text = text
         self.normalizedText = normalizedText
         self.lang = lang
+        self.edit_distance_max = 3 # Max allowed edit distance between source and target
+        self.pattern = re.compile(r"[，。？！,.?!\-\"'\s\u3000]")
 
     def _is_all_uppercase(self, text: str) -> bool:
         """检查字符串是否全为大写（至少包含一个字母）"""
         return text.isupper() and any(c.isalpha() for c in text)
+
+    def strip_punct(self, text):
+        # Remove all non-Chinese and non-alphanum chars
+        # return re.sub(r'[^\w\u4e00-\u9fa5]', '', text)
+        # 去除标点和所有空白字符，包括全角空格
+        return self.pattern.sub("", text)
+
+    def compute_edit_distance(self,source_text, target_text):
+        # 计算源文本和目标文本之间的编辑距离
+        if source_text is None or target_text is None:
+            return 1000  # 如果任一文本为空，返回无穷大
+        source_text = self.strip_punct(source_text)
+        target_text = self.strip_punct(target_text)
+        if source_text == target_text:
+            return 0
+        source_text_ = ' '.join(source_text.split())
+        target_text_ = ' '.join(target_text.split())
+        return lev.distance(source_text_, target_text_)
 
     def check(self):
         """新增全大写文本检测逻辑"""
         if self.lang == "en" and self._is_all_uppercase(self.normalizedText):
             return False
         
-        if self.lang == 'zh-cn':
-            punctuations  = '，。！？'
-        elif self.lang == 'en':
-            punctuations  = ',.?!\''
-        else:
-            raise ValueError("Unsupported language type. Use 'zh-cn' or 'en'.")
         text = self.text
         normalizedText = self.normalizedText
         if self.lang == 'en':
             text = text.lower()
             normalizedText = normalizedText.lower()
-        for punc in punctuations:
-            text = text.replace(punc, '')
-            normalizedText = normalizedText.replace(punc, '')
-        if text != normalizedText:
+        edit_dist = self.compute_edit_distance(text, normalizedText)
+        if edit_dist > self.edit_distance_max:
+            logger.warning(f"## '{text}' is ignored due to edit distance ({edit_dist}) with target text '{normalizedText}' ...")
             return False
         return True
 
@@ -174,6 +193,8 @@ def main():
     data_dir = Path(config.get("data_dir"))
     task = config.get("task")
     src_lang = config.get("src_lang")
+    
+    logger.add(f"baidu/log/{data_dir.name}_post_process.log", rotation="100 MB", level="INFO")
 
     log_path = f"baidu/log/{data_dir.name}.json"
 
