@@ -24,132 +24,33 @@ class NormalizeTaskChecker:
         self.text = text
         self.normalizedText = normalizedText
         self.lang = lang
-        self.threshold = self._calculate_threshold()
-
-    #  基于文本长度的线性调整​​
-    # ​​短文本​​（如<50字符）：提高阈值（如0.1），避免因少量噪声导致误判。
-    # ​​长文本​​（如>500字符）：降低阈值（如0.01），因长文本中噪声分布更分散，需更严格过滤
-    def _calculate_threshold(self):
-        length = len(self.text)
-        if length < 50:
-            return 0.1
-        elif length > 500:
-            return 0.01
-        else:
-            return 0.05  # 默认值
 
     def _is_all_uppercase(self, text: str) -> bool:
         """检查字符串是否全为大写（至少包含一个字母）"""
         return text.isupper() and any(c.isalpha() for c in text)
 
-    def normalize_punctuation(self, text, lang):
-        """
-        规范化标点符号，中文模式下额外保留英文字符和数字
-        :param text: 输入文本
-        :param lang: 语言类型 ('zh-cn' 中文, 'en' 英文)
-        :return: 规范化后的文本
-        """
-        if lang == 'zh-cn':
-            # 中文模式：保留汉字、英文、数字、中英文标点及空格
-            pattern = r'[^\u4e00-\u9fa5a-zA-Z0-9，。？！,.?!\'\s]'  # 新增a-zA-Z0-9
-        elif lang == 'en':
-            # 英文模式：保留字母、数字、英文标点及空格
-            pattern = r'[^a-zA-Z0-9,.?!\'\s]'  # 保持原逻辑
-        else:
-            raise ValueError("Unsupported language type. Use 'zh-cn' or 'en'.")
-        
-        cleaned = re.sub(pattern, ' ', text)  # 非法字符替换为空格
-        return re.sub(r'\s+', ' ', cleaned.strip())  # 合并连续空格
-
-    def count_non_punct_chars(self, text: str) -> Counter:
-        """
-        统计文本中的非标点字符（完全忽略所有标点符号）
-        :param text: 输入文本
-        :return: Counter对象统计字符频次
-        """
-        # 匹配所有非标点字符（包括字母、数字、空格及非标点符号的其他字符）
-        chars = re.findall(r'[^\s\W_]', text, flags=re.UNICODE)  # \W匹配非字母数字，加_排除下划线
-        if self.lang == 'en':
-            chars = [char.lower() for char in chars]  # 英文统一转小写
-        return Counter(chars)
-
-    def compare_distributions(self, original, normalized, threshold):
-        total_orig = sum(original.values()) or 1
-        total_norm = sum(normalized.values()) or 1
-        
-        diff_percent = {}
-        for char in set(original) | set(normalized):
-            orig_pct = original.get(char, 0) / total_orig
-            norm_pct = normalized.get(char, 0) / total_norm
-            diff = abs(orig_pct - norm_pct)
-            diff_percent[char] = diff
-            if diff > threshold:
-                return False, diff_percent
-        return True, diff_percent
-
     def check(self):
         """新增全大写文本检测逻辑"""
         if self.lang == "en" and self._is_all_uppercase(self.normalizedText):
-            return {
-                'original_text': self.text,
-                'normalized_text': self.normalizedText,
-                'is_valid': False,
-                'reason': 'Input text is all uppercase'
-            }
+            return False
         
-        normalized = self.normalize_punctuation(self.normalizedText, self.lang)
-        orig_counts = self.count_non_punct_chars(self.text)
-        norm_counts = self.count_non_punct_chars(normalized)
-        
-        keep_data, diff_percent = self.compare_distributions(orig_counts, norm_counts, self.threshold)
-        
-        return {
-            'original_text': self.text,
-            'normalized_text': normalized,
-            'original_counts': orig_counts,
-            'normalized_counts': norm_counts,
-            'is_valid': keep_data,
-            'diff_percent': diff_percent,
-            'reason': None if keep_data else '字符分布差异过大'
-        }
-
-    def print_results(self, result):
-        """
-        打印处理结果
-        """
-        
-        # 全大写文本直接输出原因并终止
-        if result['reason'] == 'Input text is all uppercase':
-            print(f"\n警告: 数据丢弃 - {result['reason']}")
-            return  # 提前返回，不打印后续内容
-
-        print("\n=== 原始文本 ===")
-        print(result['original_text'])
-        
-        print("\n=== 规范化后文本 ===")
-        print(result['normalized_text'])
-
-        print("\n=== 字符统计 ===")
-        print("原始文本非标点字符分布:")
-        for char, count in result['original_counts'].most_common():
-            print(f"'{char}': {count}")
-        
-        print("\n处理后非标点字符分布:")
-        for char, count in result['normalized_counts'].most_common():
-            print(f"'{char}': {count}")
-        
-        print("\n=== 数据有效性检查 ===")
-        if result['is_valid']:
-            print("数据有效 - 字符分布差异在允许范围内")
-            print("各字符差异百分比:")
-            for char, diff in result['diff_percent'].items():
-                print(f"'{char}': {diff:.2%}")
+        if self.lang == 'zh-cn':
+            punctuations  = '，。！？'
+        elif self.lang == 'en':
+            punctuations  = ',.?!\''
         else:
-            print(f"警告: 数据丢弃 - {result['reason']}")
-            print("超出阈值的字符差异:")
-            for char, diff in result['diff_percent'].items():
-                if diff > self.threshold:  # 与compare_distributions中的阈值一致
-                    print(f"'{char}': {diff:.2%}")
+            raise ValueError("Unsupported language type. Use 'zh-cn' or 'en'.")
+        text = self.text
+        normalizedText = self.normalizedText
+        if self.lang == 'en':
+            text = text.lower()
+            normalizedText = normalizedText.lower()
+        for punc in punctuations:
+            text = text.replace(punc, '')
+            normalizedText = normalizedText.replace(punc, '')
+        if text != normalizedText:
+            return False
+        return True
 
 def process_file(in_path: Path, out_path: Path, task: str, src_lang: str) -> dict:
     """
@@ -204,17 +105,19 @@ def process_file(in_path: Path, out_path: Path, task: str, src_lang: str) -> dic
                 dump_item = {"topic": metadata}
                 dump_item["contents"] = [sentence.strip() for sentence in answer.split("\n") if sentence]
             elif task == "norm":
-                original_text = item["messages"][1]["content"]
+                prompt = item["messages"][1]["content"]
+                original_text = prompt.split("\n", 1)[-1]
+                # original_text = item["messages"][1]["content"]
                 normalized_text = answer
                 try:
                     checker = NormalizeTaskChecker(original_text, normalized_text, src_lang)
                     check_result = checker.check()
-                    if check_result["is_valid"]:
+                    if check_result:
                         dump_item = {"utt": metadata}
                         dump_item["src"] = original_text
-                        dump_item["text"] = check_result["normalized_text"]
+                        dump_item["text"] = normalized_text
                     else:
-                        checker.print_results(check_result)
+                        logger.warning(f"norm task is not valid, utt : {metadata}, src : {original_text}, text : {normalized_text}")
                         continue
                 except ValueError as e:
                     logger.error(f"规范化失败: {e}")
