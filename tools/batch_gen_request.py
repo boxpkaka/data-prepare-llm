@@ -62,7 +62,10 @@ class BatchRequestGenerator:
         self.scene = config.get("scene", DEFAULT_SCENE)
         self.style_suffix = config.get("style_suffix", DEFAULT_STYLE_SUFFIX)
         self.scene_suffix = config.get("scene_suffix", DEFAULT_SCENE_SUFFIX)
+
         self.src_lang = config.get("src_lang", "en")
+        self.tgt_lang = config.get("tgt_lang", "zh")
+
         self.max_tokens = config.get("max_tokens", DEFAULT_MAX_TOKENS)
         self.prompt = config.get("prompt", None)
 
@@ -72,6 +75,7 @@ class BatchRequestGenerator:
         self.id_key = config.get("id_key", TASK[self.task]["id_key"])
         self.content_key = config.get("content_key", TASK[self.task]["content_key"])
 
+        # For SST
         assert self.client_type in CLIENT_TYPE
         assert self.task in TASK
 
@@ -164,15 +168,19 @@ class BatchRequestGenerator:
 
         return request
 
-    def process_line(self, line: str, file_path: Path) -> tuple[dict, str]:
+    def process_line(self, line: str, file_path: Path) -> tuple[dict | None, str | None]:
         if self.task == "sst":
             item = ujson.loads(line)
-            custom_id = item.get("wav_path")
-            text = item.get(self.src_lang)
+            # If the item does not contain the required keys, log a warning and return None
+            if "utt" not in item or "text" not in item:
+                logger.warning(f"Missing keys in item: {item}")
+                return None, None
+            custom_id = item["utt"]
+            text = item["text"].replace(" ", "")
             request = self.get_batch_request(
-                user_prompt=[SST_PROMPT, text],
+                user_prompt=text,
                 custom_id=custom_id,
-                system_prompt=None
+                system_prompt=SST_PROMPT[self.src_lang][self.tgt_lang]
             )
         elif self.task == "extract":
             item = ujson.loads(line)
